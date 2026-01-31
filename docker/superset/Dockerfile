@@ -12,13 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
+# Note: Không cài SQLAlchemy để Superset dùng version mặc định (tương thích với Alembic)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-    sqlalchemy==2.0.23 \
     clickhouse-connect==0.7.0 \
     clickhouse-driver==0.2.6 \
-    clickhouse-sqlalchemy==0.3.0 \
-    redis==5.0.1 \
+    "redis>=4.5.4,<5.0" \
     psycopg2-binary==2.9.9
 
 # Create directories

@@ -40,8 +40,8 @@
     </remote_servers>
     
     <!-- Performance Settings -->
-    <max_memory_usage>8000000000</max_memory_usage>
-    <max_threads>8</max_threads>
+    <max_memory_usage>1000000000</max_memory_usage>
+    <max_threads>2</max_threads>
     
     <!-- Iceberg Integration Settings -->
     <iceberg_catalog_default>

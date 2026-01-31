@@ -209,6 +209,12 @@ services:
       - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/custom.xml:ro
     networks:
       - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
     ulimits:
       nofile:
         soft: 262144
@@ -281,8 +287,8 @@ services:
         condition: service_healthy
       superset-cache:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
+      superset-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 30s
