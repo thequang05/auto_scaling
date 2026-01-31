@@ -35,6 +35,7 @@ def get_spark_session():
         .config("spark.sql.catalog.iceberg.uri", "http://iceberg-rest:8181") \
         .config("spark.sql.catalog.iceberg.warehouse", "s3a://iceberg-warehouse/") \
         .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.hadoop.HadoopFileIO") \
+        .config("spark.hadoop.fs.s3.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
         .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
         .config("spark.hadoop.fs.s3a.access.key", "minioadmin") \
         .config("spark.hadoop.fs.s3a.secret.key", "minioadmin123") \
