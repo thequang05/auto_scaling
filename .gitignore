@@ -1,0 +1,105 @@
+# =============================================================================
+# DATA LAKEHOUSE - GITIGNORE
+# =============================================================================
+
+# Data files (too large for git)
+data/raw/*.csv
+data/raw/*.parquet
+data/raw/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.env
+.venv
+venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+
+# Spark
+spark/logs/
+*.log
+metastore_db/
+derby.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker/volumes/
+
+# Secrets
+*.pem
+*.key
+.env.local
+.env.production
+secrets/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Build artifacts
+*.jar
+*.war
+*.ear
+
+# Compiled files
+*.class
+*.o
+*.pyc
+
+# Package managers
+node_modules/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Documentation build
+docs/_build/
+
+# MinIO data (local development)
+minio-data/

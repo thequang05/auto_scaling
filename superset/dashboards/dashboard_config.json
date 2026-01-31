@@ -1,0 +1,81 @@
+{
+  "dashboard_name": "E-commerce Analytics Dashboard",
+  "description": "Comprehensive analytics dashboard for e-commerce data lakehouse",
+  "owner": "Data Engineering Team",
+  "charts": [
+    {
+      "id": 1,
+      "name": "Daily Revenue Trend",
+      "chart_type": "line",
+      "description": "Revenue trend over time",
+      "sql": "SELECT sale_date, sum(total_revenue) AS revenue FROM lakehouse.daily_sales GROUP BY sale_date ORDER BY sale_date",
+      "x_axis": "sale_date",
+      "y_axis": "revenue",
+      "position": {"row": 0, "col": 0, "width": 8, "height": 4}
+    },
+    {
+      "id": 2,
+      "name": "Revenue by Category",
+      "chart_type": "pie",
+      "description": "Revenue distribution by product category",
+      "sql": "SELECT category_level1, sum(total_revenue) AS revenue FROM lakehouse.daily_sales GROUP BY category_level1",
+      "dimension": "category_level1",
+      "metric": "revenue",
+      "position": {"row": 0, "col": 8, "width": 4, "height": 4}
+    },
+    {
+      "id": 3,
+      "name": "Conversion Funnel",
+      "chart_type": "funnel",
+      "description": "View → Cart → Purchase conversion funnel",
+      "sql": "SELECT 'Views' AS stage, sum(views) AS count FROM lakehouse.funnel_analysis UNION ALL SELECT 'Carts', sum(carts) FROM lakehouse.funnel_analysis UNION ALL SELECT 'Purchases', sum(purchases) FROM lakehouse.funnel_analysis",
+      "position": {"row": 4, "col": 0, "width": 4, "height": 4}
+    },
+    {
+      "id": 4,
+      "name": "Customer Segments",
+      "chart_type": "bar",
+      "description": "Customer distribution by RFM segment",
+      "sql": "SELECT customer_segment, count() AS customers FROM lakehouse.customer_rfm GROUP BY customer_segment ORDER BY customers DESC",
+      "x_axis": "customer_segment",
+      "y_axis": "customers",
+      "position": {"row": 4, "col": 4, "width": 8, "height": 4}
+    },
+    {
+      "id": 5,
+      "name": "Top 10 Products",
+      "chart_type": "table",
+      "description": "Best performing products by revenue",
+      "sql": "SELECT product_id, brand, category_level1, total_revenue, purchases FROM lakehouse.product_performance ORDER BY revenue_rank LIMIT 10",
+      "position": {"row": 8, "col": 0, "width": 6, "height": 4}
+    },
+    {
+      "id": 6,
+      "name": "KPI Metrics",
+      "chart_type": "big_number",
+      "description": "Key performance indicators",
+      "metrics": [
+        {"name": "Total Revenue", "sql": "SELECT sum(total_revenue) FROM lakehouse.daily_sales"},
+        {"name": "Total Orders", "sql": "SELECT sum(order_count) FROM lakehouse.daily_sales"},
+        {"name": "Avg Conversion Rate", "sql": "SELECT round(avg(overall_conversion_rate) * 100, 2) FROM lakehouse.funnel_analysis"},
+        {"name": "Total Customers", "sql": "SELECT count() FROM lakehouse.customer_rfm"}
+      ],
+      "position": {"row": 8, "col": 6, "width": 6, "height": 4}
+    }
+  ],
+  "filters": [
+    {
+      "name": "Date Range",
+      "type": "time_range",
+      "column": "sale_date",
+      "default": "Last 30 days"
+    },
+    {
+      "name": "Category",
+      "type": "select",
+      "column": "category_level1",
+      "multi": true
+    }
+  ],
+  "css": "/* Custom dashboard styling */\n.dashboard-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }\n.chart-container { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }"
+}

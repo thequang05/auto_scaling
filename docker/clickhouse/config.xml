@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<!-- =============================================================================
+     ClickHouse Custom Configuration for Data Lakehouse
+     ============================================================================= -->
+<clickhouse>
+    <!-- Logging -->
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>100M</size>
+        <count>3</count>
+    </logger>
+    
+    <!-- HTTP Interface -->
+    <http_port>8123</http_port>
+    <listen_host>0.0.0.0</listen_host>
+    
+    <!-- Native Interface -->
+    <tcp_port>9000</tcp_port>
+    
+    <!-- S3/MinIO Configuration for Iceberg -->
+    <s3>
+        <endpoint>http://minio:9000/</endpoint>
+        <access_key_id>minioadmin</access_key_id>
+        <secret_access_key>minioadmin123</secret_access_key>
+        <use_virtual_addressing>false</use_virtual_addressing>
+    </s3>
+    
+    <!-- Allow access from anywhere for development -->
+    <remote_servers>
+        <default>
+            <shard>
+                <replica>
+                    <host>clickhouse</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </default>
+    </remote_servers>
+    
+    <!-- Performance Settings -->
+    <max_memory_usage>8000000000</max_memory_usage>
+    <max_threads>8</max_threads>
+    
+    <!-- Iceberg Integration Settings -->
+    <iceberg_catalog_default>
+        <type>rest</type>
+        <uri>http://iceberg-rest:8181</uri>
+        <warehouse>s3://iceberg-warehouse/</warehouse>
+    </iceberg_catalog_default>
+</clickhouse>

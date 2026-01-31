@@ -1,0 +1,108 @@
+# =============================================================================
+# dbt Project Configuration for Data Lakehouse
+# =============================================================================
+# dbt-spark với Apache Iceberg integration
+# =============================================================================
+
+name: 'lakehouse'
+version: '1.0.0'
+config-version: 2
+
+# Profile để kết nối với Spark Thrift Server
+profile: 'lakehouse'
+
+# Thư mục mã nguồn
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+# Thư mục output
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+  - "logs"
+
+# =============================================================================
+# Model Configuration
+# =============================================================================
+models:
+  lakehouse:
+    # Staging models (Bronze → Silver processing)
+    staging:
+      +schema: silver
+      +materialized: table
+      +file_format: iceberg
+      +tags: ['staging', 'silver']
+      +docs:
+        node_color: '#C0C0C0'  # Silver color
+
+    # Marts models (Silver → Gold processing)  
+    marts:
+      +schema: gold
+      +materialized: table
+      +file_format: iceberg
+      +tags: ['marts', 'gold']
+      +docs:
+        node_color: '#FFD700'  # Gold color
+
+      # Core business tables
+      core:
+        +schema: gold
+        +materialized: table
+        
+      # Finance-specific tables
+      finance:
+        +schema: gold_finance
+        +materialized: table
+
+# =============================================================================
+# Seeds (Static reference data)
+# =============================================================================
+seeds:
+  lakehouse:
+    +schema: reference
+
+# =============================================================================
+# Variables
+# =============================================================================
+vars:
+  # Date range for processing
+  start_date: '2019-10-01'
+  end_date: '2020-04-30'
+  
+  # RFM thresholds
+  rfm_recency_threshold: 30
+  rfm_frequency_threshold: 5
+  rfm_monetary_threshold: 100
+
+# =============================================================================
+# Hooks
+# =============================================================================
+on-run-start:
+  - "{{ log('Starting dbt run for Lakehouse project', info=True) }}"
+
+on-run-end:
+  - "{{ log('dbt run completed', info=True) }}"
+
+# =============================================================================
+# Documentation
+# =============================================================================
+docs-paths: ["docs"]
+
+# =============================================================================
+# Query Configuration
+# =============================================================================
+query-comment:
+  comment: "dbt: {{ node.unique_id }}"
+  append: true
+
+# =============================================================================
+# Dispatch (for package compatibility)
+# =============================================================================
+dispatch:
+  - macro_namespace: dbt
+    search_order: ['lakehouse', 'dbt']

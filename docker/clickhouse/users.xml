@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<!-- =============================================================================
+     ClickHouse User Configuration
+     ============================================================================= -->
+<clickhouse>
+    <users>
+        <default>
+            <password>clickhouse123</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </default>
+        
+        <!-- Read-only user for Superset -->
+        <superset>
+            <password>superset123</password>
+            <networks>
+                <ip>::/0</ip>
+            </networks>
+            <profile>readonly</profile>
+            <quota>default</quota>
+        </superset>
+    </users>
+    
+    <profiles>
+        <default>
+            <max_memory_usage>8000000000</max_memory_usage>
+            <load_balancing>random</load_balancing>
+            <max_execution_time>600</max_execution_time>
+        </default>
+        
+        <readonly>
+            <readonly>1</readonly>
+            <max_memory_usage>4000000000</max_memory_usage>
+            <max_execution_time>120</max_execution_time>
+        </readonly>
+    </profiles>
+    
+    <quotas>
+        <default>
+            <interval>
+                <duration>3600</duration>
+                <queries>1000</queries>
+                <errors>100</errors>
+                <result_rows>1000000000</result_rows>
+                <read_rows>1000000000</read_rows>
+                <execution_time>3600</execution_time>
+            </interval>
+        </default>
+    </quotas>
+</clickhouse>

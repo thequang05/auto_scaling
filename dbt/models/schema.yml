@@ -1,0 +1,223 @@
+version: 2
+
+# =============================================================================
+# STAGING MODELS
+# =============================================================================
+models:
+  - name: stg_events
+    description: |
+      Cleaned and standardized events from Bronze layer.
+      Contains all user interactions: views, cart additions, and purchases.
+    columns:
+      - name: event_id
+        description: Unique identifier for each event
+        tests:
+          - unique
+          - not_null
+      - name: event_time
+        description: Timestamp when the event occurred
+        tests:
+          - not_null
+      - name: event_type
+        description: Type of event (view, cart, purchase)
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['view', 'cart', 'purchase', 'remove_from_cart']
+      - name: user_id
+        description: User identifier
+        tests:
+          - not_null
+      - name: product_id
+        description: Product identifier
+        tests:
+          - not_null
+      - name: price
+        description: Product price at event time
+        tests:
+          - not_null
+      - name: brand
+        description: Product brand (cleaned)
+      - name: category_level1
+        description: Top-level product category
+
+  - name: stg_products
+    description: |
+      Product dimension table with aggregated metrics.
+      Derived from events data.
+    columns:
+      - name: product_id
+        description: Unique product identifier
+        tests:
+          - unique
+          - not_null
+      - name: brand
+        description: Product brand
+      - name: category_level1
+        description: Top-level category
+      - name: view_count
+        description: Total view events
+      - name: cart_count
+        description: Total cart events
+      - name: purchase_count
+        description: Total purchase events
+      - name: view_to_cart_rate
+        description: Conversion rate from view to cart (%)
+
+  - name: stg_users
+    description: |
+      User dimension table with activity metrics.
+    columns:
+      - name: user_id
+        description: Unique user identifier
+        tests:
+          - unique
+          - not_null
+      - name: first_seen
+        description: First recorded activity
+        tests:
+          - not_null
+      - name: last_seen
+        description: Most recent activity
+        tests:
+          - not_null
+      - name: total_events
+        description: Total number of events
+        tests:
+          - not_null
+      - name: is_buyer
+        description: Whether user has made a purchase
+
+# =============================================================================
+# MARTS MODELS
+# =============================================================================
+  - name: fct_daily_sales
+    description: |
+      Daily sales aggregated by category.
+      Partitioned by year/month for efficient time-series queries.
+      
+      **Key Metrics:**
+      - Revenue by category
+      - Order count
+      - Unique customers
+      - Average order value
+    columns:
+      - name: sale_id
+        description: Surrogate key for the sales record
+        tests:
+          - unique
+          - not_null
+      - name: sale_date
+        description: Date of sales
+        tests:
+          - not_null
+      - name: category_level1
+        description: Product category
+      - name: total_revenue
+        description: Total revenue for the day/category
+        tests:
+          - not_null
+      - name: order_count
+        description: Number of orders
+        tests:
+          - not_null
+
+  - name: fct_funnel
+    description: |
+      Daily conversion funnel analysis.
+      Tracks View → Cart → Purchase journey.
+      
+      **Key Metrics:**
+      - View to Cart conversion
+      - Cart to Purchase conversion
+      - Overall conversion rate
+    columns:
+      - name: analysis_date
+        description: Date of analysis
+        tests:
+          - unique
+          - not_null
+      - name: views
+        description: Total view events
+      - name: carts
+        description: Total cart events
+      - name: purchases
+        description: Total purchase events
+      - name: view_to_cart_rate
+        description: View to cart conversion percentage
+      - name: overall_conversion_rate
+        description: End-to-end conversion percentage
+
+  - name: dim_customer_rfm
+    description: |
+      RFM (Recency, Frequency, Monetary) customer segmentation.
+      
+      **Segments:**
+      - Champions: Best customers (R≥4, F≥4, M≥4)
+      - Loyal Customers: Regular buyers
+      - New Customers: Recently acquired
+      - At Risk: Haven't purchased recently
+      - Lost: Churned customers
+    columns:
+      - name: user_id
+        description: Unique user identifier
+        tests:
+          - unique
+          - not_null
+      - name: recency
+        description: Days since last purchase
+        tests:
+          - not_null
+      - name: frequency
+        description: Number of purchases
+        tests:
+          - not_null
+      - name: monetary
+        description: Total amount spent
+        tests:
+          - not_null
+      - name: customer_segment
+        description: RFM segment name
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'Champions'
+                - 'Loyal Customers'
+                - 'Potential Loyalists'
+                - 'New Customers'
+                - 'Promising'
+                - 'Need Attention'
+                - 'About to Sleep'
+                - 'At Risk'
+                - 'Cant Lose Them'
+                - 'Hibernating'
+                - 'Lost'
+                - 'Other'
+      - name: rfm_score
+        description: Combined RFM score (3-15)
+        tests:
+          - not_null
+
+# =============================================================================
+# SOURCE DEFINITIONS
+# =============================================================================
+sources:
+  - name: bronze
+    description: Raw data ingested from source systems
+    database: iceberg
+    schema: bronze
+    tables:
+      - name: events_raw
+        description: Raw e-commerce events
+        columns:
+          - name: event_time
+            description: Event timestamp
+          - name: event_type
+            description: Type of event
+          - name: product_id
+            description: Product identifier
+          - name: user_id
+            description: User identifier
+          - name: price
+            description: Product price

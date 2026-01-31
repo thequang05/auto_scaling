@@ -1,0 +1,61 @@
+# =============================================================================
+# dbt Profiles Configuration
+# =============================================================================
+# Kết nối với Spark Thrift Server cho Iceberg tables
+# =============================================================================
+
+lakehouse:
+  target: dev
+  outputs:
+    # Development environment
+    dev:
+      type: spark
+      method: thrift
+      host: spark-thrift
+      port: 10000
+      schema: silver
+      user: hive
+      connect_timeout: 60
+      connect_retries: 3
+      threads: 4
+      
+    # Production environment  
+    prod:
+      type: spark
+      method: thrift
+      host: spark-thrift
+      port: 10000
+      schema: gold
+      user: hive
+      connect_timeout: 120
+      connect_retries: 5
+      threads: 8
+      
+    # Test environment for CI/CD
+    test:
+      type: spark
+      method: thrift
+      host: localhost
+      port: 10000
+      schema: test
+      user: hive
+      connect_timeout: 30
+      connect_retries: 2
+      threads: 2
+
+# =============================================================================
+# Alternative: ClickHouse connection (for direct querying)
+# =============================================================================
+# lakehouse_clickhouse:
+#   target: dev
+#   outputs:
+#     dev:
+#       type: clickhouse
+#       driver: http
+#       host: clickhouse
+#       port: 8123
+#       user: default
+#       password: clickhouse123
+#       database: lakehouse
+#       schema: default
+#       threads: 4
