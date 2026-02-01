@@ -1,12 +1,18 @@
 """
 =============================================================================
-SILVER LAYER: Clean and Transform Events
+SILVER LAYER: Clean and Transform Events (OPTIMIZED)
 =============================================================================
 Làm sạch dữ liệu từ Bronze Layer:
 - Loại bỏ duplicates
 - Xử lý NULL values
 - Chuẩn hóa data types
 - Tạo các dimension tables (products, users)
+
+OPTIMIZATIONS:
+- Removed unnecessary .count() calls
+- Added caching for reused DataFrames
+- Reduced partition count for better performance
+- Added Spark SQL adaptive execution
 
 Usage:
     spark-submit --master spark://spark-master:7077 clean_events.py
@@ -26,7 +32,7 @@ from pyspark.sql.types import DecimalType
 
 
 def get_spark_session():
-    """Khởi tạo SparkSession với cấu hình Iceberg."""
+    """Khởi tạo SparkSession với cấu hình Iceberg + Optimizations."""
     spark = SparkSession.builder \
         .appName("Silver-CleanEvents") \
         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
@@ -42,6 +48,11 @@ def get_spark_session():
         .config("spark.hadoop.fs.s3a.path.style.access", "true") \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
         .config("spark.sql.defaultCatalog", "iceberg") \
+        .config("spark.sql.shuffle.partitions", "50") \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+        .config("spark.sql.adaptive.skewJoin.enabled", "true") \
+        .config("spark.sql.files.maxPartitionBytes", "128m") \
         .getOrCreate()
     
     spark.sparkContext.setLogLevel("WARN")
@@ -57,31 +68,27 @@ def create_namespace_if_not_exists(spark, namespace: str):
 def clean_events(spark) -> None:
     """
     Làm sạch bảng events từ Bronze → Silver.
+    OPTIMIZED: Removed unnecessary count() calls, added caching.
     """
     print("\n" + "="*60)
-    print("SILVER LAYER: CLEANING EVENTS")
+    print("SILVER LAYER: CLEANING EVENTS (OPTIMIZED)")
     print("="*60)
     
     # Đọc từ Bronze
     bronze_df = spark.table("iceberg.bronze.events_raw")
-    print(f"Bronze records: {bronze_df.count():,}")
+    print("✓ Loaded Bronze table")
     
     # =========================================================================
-    # Step 1: Remove duplicates
+    # Step 1: Remove duplicates (OPTIMIZED - no count)
     # =========================================================================
     print("\n📋 Step 1: Removing duplicates...")
     
-    # Define window for deduplication (keep latest record per event)
-    dedup_window = Window.partitionBy(
+    # Use dropDuplicates instead of window function for better performance
+    deduped_df = bronze_df.dropDuplicates([
         "event_time", "event_type", "product_id", "user_id", "user_session"
-    ).orderBy(col("_ingestion_time").desc())
+    ])
     
-    deduped_df = bronze_df \
-        .withColumn("_row_num", row_number().over(dedup_window)) \
-        .filter(col("_row_num") == 1) \
-        .drop("_row_num")
-    
-    print(f"After deduplication: {deduped_df.count():,}")
+    print("✓ Duplicates removed")
     
     # =========================================================================
     # Step 2: Handle NULL values
@@ -101,6 +108,8 @@ def clean_events(spark) -> None:
             when(col("price").isNull() | (col("price") < 0), 0.0)
             .otherwise(col("price"))
         )
+    
+    print("✓ NULL values handled")
     
     # =========================================================================
     # Step 3: Standardize and extract features
@@ -137,31 +146,22 @@ def clean_events(spark) -> None:
         ) \
         .withColumn("_transform_time", current_timestamp())
     
+    print("✓ Features extracted")
+    
     # =========================================================================
-    # Step 4: Data quality checks
+    # Step 4: Filter valid records (OPTIMIZED - no count)
     # =========================================================================
-    print("\n📋 Step 4: Data quality checks...")
+    print("\n📋 Step 4: Filtering valid records...")
     
-    total_records = silver_df.count()
-    null_user_count = silver_df.filter(col("user_id").isNull()).count()
-    null_product_count = silver_df.filter(col("product_id").isNull()).count()
-    negative_price_count = silver_df.filter(col("price") < 0).count()
-    
-    print(f"  Total records: {total_records:,}")
-    print(f"  Null user_id: {null_user_count:,} ({100*null_user_count/total_records:.2f}%)")
-    print(f"  Null product_id: {null_product_count:,} ({100*null_product_count/total_records:.2f}%)")
-    print(f"  Negative prices: {negative_price_count:,}")
-    
-    # Filter out invalid records
     valid_df = silver_df.filter(
         col("user_id").isNotNull() & 
         col("product_id").isNotNull()
     )
     
-    print(f"  Valid records: {valid_df.count():,}")
+    print("✓ Invalid records filtered")
     
     # =========================================================================
-    # Step 5: Write to Silver Layer
+    # Step 5: Write to Silver Layer (OPTIMIZED - fewer partitions)
     # =========================================================================
     print("\n📋 Step 5: Writing to Silver Layer...")
     
@@ -193,21 +193,29 @@ def clean_events(spark) -> None:
         "_transform_time"
     )
     
-    # Write with partitioning
+    # Cache before writing (used for both main table and dimensions)
+    final_df.cache()
+    
+    # Write with optimized partitioning (only by event_year, event_month)
     final_df.writeTo("iceberg.silver.events_cleaned") \
         .tableProperty("format-version", "2") \
         .tableProperty("write.parquet.compression-codec", "snappy") \
-        .partitionedBy("event_date", "event_type") \
+        .tableProperty("write.target-file-size-bytes", "134217728") \
+        .partitionedBy("event_year", "event_month") \
         .createOrReplace()
     
-    print("✓ Events cleaned and written to iceberg.silver.events_cleaned")
+    # Get count after write (one time only)
+    record_count = spark.table("iceberg.silver.events_cleaned").count()
+    print(f"✓ Written {record_count:,} records to iceberg.silver.events_cleaned")
     
     # Show sample
     print("\nSample cleaned data:")
     spark.table("iceberg.silver.events_cleaned").show(5, truncate=False)
+    
+    return final_df
 
 
-def create_dim_products(spark) -> None:
+def create_dim_products(spark, silver_df=None) -> None:
     """
     Tạo dimension table Products từ Silver events.
     """
@@ -215,7 +223,8 @@ def create_dim_products(spark) -> None:
     print("SILVER LAYER: CREATING DIM_PRODUCTS")
     print("="*60)
     
-    silver_df = spark.table("iceberg.silver.events_cleaned")
+    if silver_df is None:
+        silver_df = spark.table("iceberg.silver.events_cleaned")
     
     # Aggregate product information
     products_df = silver_df \
@@ -240,11 +249,12 @@ def create_dim_products(spark) -> None:
         .tableProperty("format-version", "2") \
         .createOrReplace()
     
-    print(f"✓ Created dim_products with {products_df.count():,} products")
+    product_count = spark.table("iceberg.silver.dim_products").count()
+    print(f"✓ Created dim_products with {product_count:,} products")
     products_df.show(5, truncate=False)
 
 
-def create_dim_users(spark) -> None:
+def create_dim_users(spark, silver_df=None) -> None:
     """
     Tạo dimension table Users từ Silver events.
     """
@@ -252,7 +262,8 @@ def create_dim_users(spark) -> None:
     print("SILVER LAYER: CREATING DIM_USERS")
     print("="*60)
     
-    silver_df = spark.table("iceberg.silver.events_cleaned")
+    if silver_df is None:
+        silver_df = spark.table("iceberg.silver.events_cleaned")
     
     # Aggregate user information
     users_df = silver_df \
@@ -281,7 +292,8 @@ def create_dim_users(spark) -> None:
         .tableProperty("format-version", "2") \
         .createOrReplace()
     
-    print(f"✓ Created dim_users with {users_df.count():,} users")
+    user_count = spark.table("iceberg.silver.dim_users").count()
+    print(f"✓ Created dim_users with {user_count:,} users")
     users_df.show(5, truncate=False)
 
 
@@ -293,12 +305,16 @@ def main():
         # Create namespace
         create_namespace_if_not_exists(spark, "silver")
         
-        # Clean events
-        clean_events(spark)
+        # Clean events and get cached DataFrame
+        silver_df = clean_events(spark)
         
-        # Create dimension tables
-        create_dim_products(spark)
-        create_dim_users(spark)
+        # Create dimension tables using cached DataFrame
+        create_dim_products(spark, silver_df)
+        create_dim_users(spark, silver_df)
+        
+        # Unpersist cached DataFrame
+        if silver_df is not None:
+            silver_df.unpersist()
         
         print("\n" + "="*60)
         print("✅ SILVER LAYER TRANSFORMATION COMPLETED!")

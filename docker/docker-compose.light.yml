@@ -1,0 +1,276 @@
+version: '3.8'
+
+# =============================================================================
+# DATA LAKEHOUSE - DOCKER COMPOSE (LIGHTWEIGHT - 8GB RAM)
+# =============================================================================
+# Cấu hình tối ưu cho máy 8GB RAM
+# Tiết kiệm ~3GB RAM so với cấu hình gốc
+#
+# Sử dụng:
+#   docker compose -f docker/docker-compose.light.yml up -d
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # STORAGE LAYER - MinIO (Object Storage)
+  # ===========================================================================
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-01-16T16-07-38Z
+    container_name: minio
+    hostname: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # MinIO Client - Create buckets on startup
+  minio-setup:
+    image: quay.io/minio/mc:RELEASE.2024-01-16T16-06-34Z
+    container_name: minio-setup
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c " sleep 5; mc alias set minio http://minio:9000 minioadmin minioadmin123; mc mb minio/lakehouse --ignore-existing; mc mb minio/lakehouse-bronze --ignore-existing; mc mb minio/lakehouse-silver --ignore-existing; mc mb minio/lakehouse-gold --ignore-existing; mc mb minio/iceberg-warehouse --ignore-existing; mc anonymous set public minio/lakehouse; echo 'MinIO buckets created successfully!'; exit 0; "
+    networks:
+      - lakehouse-network
+
+  # ===========================================================================
+  # CATALOG SERVICE - Iceberg REST Catalog
+  # ===========================================================================
+  iceberg-rest:
+    image: tabulario/iceberg-rest:latest
+    container_name: iceberg-rest
+    hostname: iceberg-rest
+    ports:
+      - "8181:8181"
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_REGION: us-east-1
+      CATALOG_WAREHOUSE: s3://iceberg-warehouse/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: http://minio:9000
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+      # Memory optimization
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+    networks:
+      - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8181/v1/config" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ===========================================================================
+  # COMPUTE LAYER - Apache Spark (Optimized)
+  # ===========================================================================
+  spark-master:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    container_name: spark-master
+    hostname: spark-master
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+      - "4040:4040"
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_REGION: us-east-1
+      SPARK_MODE: master
+      SPARK_MASTER_HOST: spark-master
+      SPARK_MASTER_PORT: "7077"
+      SPARK_MASTER_WEBUI_PORT: "8080"
+      # Memory optimization
+      SPARK_DAEMON_MEMORY: 512m
+    volumes:
+      - ../spark:/opt/spark-apps
+      - ../data:/opt/data
+      - spark-logs:/opt/spark/logs
+    command: >
+      bash -c "
+        /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master --host spark-master --port 7077 --webui-port 8080
+      "
+    depends_on:
+      iceberg-rest:
+        condition: service_started
+    networks:
+      - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  spark-worker:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    container_name: spark-worker
+    hostname: spark-worker
+    ports:
+      - "8081:8081"
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin123
+      AWS_REGION: us-east-1
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      # Optimized for 8GB RAM machine
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: 3g
+      SPARK_WORKER_WEBUI_PORT: "8081"
+    volumes:
+      - ../spark:/opt/spark-apps
+      - ../data:/opt/data
+      - spark-logs:/opt/spark/logs
+    command: >
+      bash -c "
+        /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077 --webui-port 8081
+      "
+    depends_on:
+      spark-master:
+        condition: service_healthy
+    networks:
+      - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 3584M
+        reservations:
+          memory: 2G
+
+  # ===========================================================================
+  # SERVING LAYER - ClickHouse (Optimized)
+  # ===========================================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1-alpine
+    container_name: clickhouse
+    hostname: clickhouse
+    ports:
+      - "8123:8123"
+      - "9009:9000"
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: clickhouse123
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - clickhouse-logs:/var/log/clickhouse-server
+      # NOTE: Removed custom configs (config.xml, users.xml) as they cause OOM on 8GB RAM machines
+    networks:
+      - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: [ "CMD", "wget", "--spider", "-q", "http://localhost:8123/ping" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      minio-setup:
+        condition: service_completed_successfully
+
+  # ===========================================================================
+  # VISUALIZATION - Superset (Lightweight - SQLite mode)
+  # ===========================================================================
+  superset:
+    build:
+      context: ./superset
+      dockerfile: Dockerfile
+    container_name: superset
+    hostname: superset
+    ports:
+      - "8088:8088"
+    environment:
+      SUPERSET_SECRET_KEY: supersecretkey123456789
+      # Use SQLite instead of PostgreSQL to save RAM
+      SQLALCHEMY_DATABASE_URI: sqlite:////app/superset_home/superset.db
+      FLASK_ENV: development
+      SUPERSET_LOAD_EXAMPLES: "no"
+    volumes:
+      - ./superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+      - superset-home:/app/superset_home
+    networks:
+      - lakehouse-network
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8088/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        echo 'Initializing Superset...' &&
+        superset db upgrade &&
+        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@superset.com --password admin ||
+        echo 'Admin already exists' &&
+        superset init &&
+        echo 'Starting Superset...' &&
+        gunicorn --bind 0.0.0.0:8088 --workers 2 --timeout 120 'superset.app:create_app()'
+      "
+
+# ===========================================================================
+# NETWORKS
+# ===========================================================================
+networks:
+  lakehouse-network:
+    driver: bridge
+    name: lakehouse-network
+
+# ===========================================================================
+# VOLUMES
+# ===========================================================================
+volumes:
+  minio-data:
+    name: lakehouse-minio-data
+  spark-logs:
+    name: lakehouse-spark-logs
+  clickhouse-data:
+    name: lakehouse-clickhouse-data
+  clickhouse-logs:
+    name: lakehouse-clickhouse-logs
+  superset-home:
+    name: lakehouse-superset-home

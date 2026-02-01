@@ -18,59 +18,39 @@ APP_NAME = "Data Lakehouse Dashboard"
 APP_ICON = "/static/assets/images/superset-logo-horiz.png"
 
 # =============================================================================
-# Database Configuration
+# Database Configuration (SQLite for lightweight deployments)
 # =============================================================================
 SQLALCHEMY_DATABASE_URI = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://superset:superset123@superset-db:5432/superset"
+    "SQLALCHEMY_DATABASE_URI",
+    "sqlite:////app/superset_home/superset.db"
 )
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # =============================================================================
-# Cache Configuration (Redis)
+# Cache Configuration (SimpleCache for lightweight deployments)
 # =============================================================================
-REDIS_URL = os.environ.get("REDIS_URL", "redis://superset-cache:6379/0")
-
 CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
+    "CACHE_TYPE": "SimpleCache",
     "CACHE_DEFAULT_TIMEOUT": 300,
-    "CACHE_KEY_PREFIX": "superset_",
-    "CACHE_REDIS_URL": REDIS_URL,
 }
 
 DATA_CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
-    "CACHE_DEFAULT_TIMEOUT": 86400,  # 24 hours
-    "CACHE_KEY_PREFIX": "superset_data_",
-    "CACHE_REDIS_URL": REDIS_URL,
+    "CACHE_TYPE": "SimpleCache",
+    "CACHE_DEFAULT_TIMEOUT": 86400,
 }
 
 FILTER_STATE_CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
+    "CACHE_TYPE": "SimpleCache",
     "CACHE_DEFAULT_TIMEOUT": 86400,
-    "CACHE_KEY_PREFIX": "superset_filter_",
-    "CACHE_REDIS_URL": REDIS_URL,
 }
 
 EXPLORE_FORM_DATA_CACHE_CONFIG = {
-    "CACHE_TYPE": "RedisCache",
+    "CACHE_TYPE": "SimpleCache",
     "CACHE_DEFAULT_TIMEOUT": 86400,
-    "CACHE_KEY_PREFIX": "superset_explore_",
-    "CACHE_REDIS_URL": REDIS_URL,
 }
 
-# =============================================================================
-# Celery Configuration (for async queries)
-# =============================================================================
-class CeleryConfig:
-    broker_url = REDIS_URL
-    imports = ("superset.sql_lab",)
-    result_backend = REDIS_URL
-    worker_prefetch_multiplier = 1
-    task_acks_late = False
-
-
-CELERY_CONFIG = CeleryConfig
+# Disable Celery for lightweight deployments
+# CELERY_CONFIG = None
 
 # =============================================================================
 # Feature Flags
@@ -107,9 +87,10 @@ DISPLAY_MAX_ROW = 10000
 # =============================================================================
 # ClickHouse Specific Settings
 # =============================================================================
-# Allow bigger queries for ClickHouse
-SQLALCHEMY_POOL_SIZE = 5
-SQLALCHEMY_MAX_OVERFLOW = 10
+# Note: Pool settings removed for SQLite compatibility
+# When using PostgreSQL, add back:
+# SQLALCHEMY_POOL_SIZE = 5
+# SQLALCHEMY_MAX_OVERFLOW = 10
 SQLALCHEMY_POOL_RECYCLE = 3600
 
 # =============================================================================
