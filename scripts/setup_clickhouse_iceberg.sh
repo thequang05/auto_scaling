@@ -84,7 +84,7 @@ FORMAT PrettyCompact
 
 echo ""
 echo "=============================================="
-echo "✅ ClickHouse Iceberg Setup Complete!"
+echo " ClickHouse Iceberg Setup Complete!"
 echo "=============================================="
 echo ""
 echo "You can now query data directly from Iceberg/MinIO:"

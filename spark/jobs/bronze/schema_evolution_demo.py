@@ -50,13 +50,13 @@ def demo_schema_evolution(spark):
     table_name = "iceberg.bronze.events_raw"
     
     print("\n" + "="*70)
-    print("🔄 SCHEMA EVOLUTION DEMO - APACHE ICEBERG")
+    print(" SCHEMA EVOLUTION DEMO - APACHE ICEBERG")
     print("="*70)
     
     # ==========================================================================
     # STEP 1: Show current schema (NGÀY T)
     # ==========================================================================
-    print("\n📋 STEP 1: Current Schema (Ngày T - Trước khi thêm cột)")
+    print("\n STEP 1: Current Schema (Ngày T - Trước khi thêm cột)")
     print("-" * 50)
     
     current_df = spark.table(table_name)
@@ -83,14 +83,14 @@ def demo_schema_evolution(spark):
         print("✓ Column 'payment_method' added successfully!")
     except Exception as e:
         if "already exists" in str(e).lower():
-            print("⚠️ Column 'payment_method' already exists (idempotent operation)")
+            print(" Column 'payment_method' already exists (idempotent operation)")
         else:
             raise
     
     # ==========================================================================
     # STEP 3: Verify new schema
     # ==========================================================================
-    print("\n\n✅ STEP 3: Verify New Schema")
+    print("\n\n STEP 3: Verify New Schema")
     print("-" * 50)
     
     # Refresh table metadata
@@ -115,7 +115,7 @@ def demo_schema_evolution(spark):
     # ==========================================================================
     # STEP 5: Insert new data with new column
     # ==========================================================================
-    print("\n\n📝 STEP 5: Insert New Data with payment_method")
+    print("\n\n STEP 5: Insert New Data with payment_method")
     print("-" * 50)
     
     # Create sample new data with payment_method
@@ -175,14 +175,14 @@ def demo_schema_evolution(spark):
     # ==========================================================================
     # STEP 7: Show schema history
     # ==========================================================================
-    print("\n\n📚 STEP 7: Schema History")
+    print("\n\n STEP 7: Schema History")
     print("-" * 50)
     
     print("Snapshots (each snapshot captures schema at that point):")
     spark.sql(f"SELECT * FROM {table_name}.snapshots ORDER BY committed_at DESC").show(truncate=False)
     
     print("\n\n" + "="*70)
-    print("✅ SCHEMA EVOLUTION DEMO COMPLETED!")
+    print(" SCHEMA EVOLUTION DEMO COMPLETED!")
     print("="*70)
     print("""
     Key Points:
@@ -227,7 +227,7 @@ def demo_additional_schema_operations(spark):
     print("   ALTER TABLE ... ALTER COLUMN col_name DROP NOT NULL")
     
     print("""
-    ⚠️ Note: All these operations are metadata-only operations.
+     Note: All these operations are metadata-only operations.
     They do NOT rewrite the underlying data files!
     """)
 
@@ -240,7 +240,7 @@ def main():
         demo_additional_schema_operations(spark)
         
     except Exception as e:
-        print(f"\n❌ Error: {str(e)}")
+        print(f"\n Error: {str(e)}")
         import traceback
         traceback.print_exc()
     finally:

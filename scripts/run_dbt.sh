@@ -36,5 +36,5 @@ docker run --rm \
 
 echo ""
 echo "=============================================="
-echo "✅ dbt $CMD completed!"
+echo " dbt $CMD completed!"
 echo "=============================================="
