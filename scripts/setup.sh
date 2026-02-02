@@ -35,11 +35,14 @@ echo -e "${GREEN}✓ Docker is ready${NC}"
 
 # Check Docker Compose
 echo -e "${YELLOW}Checking Docker Compose...${NC}"
-if ! command -v docker-compose &> /dev/null; then
+if command -v docker-compose &> /dev/null; then
+    echo -e "${GREEN}✓ Docker Compose is installed${NC}"
+elif docker compose version &> /dev/null; then
+    echo -e "${GREEN}✓ Docker Compose (v2) is installed${NC}"
+else
     echo -e "${RED}Docker Compose is not installed. Please install Docker Compose.${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ Docker Compose is ready${NC}"
 
 # Check system resources
 echo ""
@@ -75,6 +78,9 @@ echo -e "${YELLOW}Checking for data files...${NC}"
 if [ -z "$(ls -A data/raw 2>/dev/null)" ]; then
     echo -e "${YELLOW}⚠️ No data files found in data/raw/${NC}"
     echo ""
+    pip install kaggle
+    echo "Downloading the dataset using Kaggle CLI:"
+    kaggle datasets download -d mkechinov/ecommerce-events-history-in-cosmetics-shop -p data/raw/ --unzip
     echo "Please download the dataset from Kaggle:"
     echo "https://www.kaggle.com/datasets/mkechinov/ecommerce-events-history-in-cosmetics-shop"
     echo ""
@@ -87,7 +93,14 @@ fi
 echo ""
 echo -e "${YELLOW}Building Docker images...${NC}"
 cd docker
-docker-compose build
+if command -v docker-compose &> /dev/null; then
+    docker-compose build
+elif docker compose version &> /dev/null; then
+    docker compose build
+else
+    echo -e "${RED}Docker Compose is not installed. Please install Docker Compose.${NC}"
+    exit 1
+fi
 cd ..
 echo -e "${GREEN}✓ Docker images built${NC}"
 
