@@ -151,7 +151,7 @@ CSV Files → Spark → Bronze (Iceberg) → Silver (Iceberg) → Gold (Iceberg)
 
 ---
 
-## 🚀 Cài Đặt
+## 🚀 Cài Đặt & Cách Chạy Project (8GB RAM Friendly)
 
 ### Bước 1: Clone Repository
 
@@ -174,55 +174,75 @@ mkdir -p data/raw
 # Giải nén và đặt CSV files vào data/raw/
 ```
 
-### Bước 3: Khởi Động Hệ Thống
+### Bước 3: Build Images
 
 ```bash
-# Sử dụng Make (khuyến nghị)
-make build
-make up
-
-# Hoặc sử dụng Docker Compose trực tiếp
+cd auto_scaling
 cd docker
 docker compose build
-docker compose up -d
 ```
 
 > 💡 **Lưu ý:** File `docker/docker-compose.yml` hiện tại là **bản lightweight**  
 > - Đã tối ưu RAM cho máy 8 GB  
 > - Superset dùng **SQLite nội bộ** làm metadata DB (không cần container PostgreSQL riêng)  
 
-### Bước 4: Kiểm Tra Services
+### Bước 4: Bật Hạ Tầng (MinIO, Iceberg, ClickHouse, Superset)
 
-Đợi 1-2 phút để các services khởi động, sau đó truy cập:
+```bash
+cd /Users/koiita/Downloads/auto_scaling
 
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| MinIO Console | http://localhost:9001 | minioadmin / minioadmin123 |
-| Spark Master UI | http://localhost:8080 | - |
-| ClickHouse | http://localhost:8123 | default / clickhouse123 |
-| Superset | http://localhost:8088 | admin / admin |
-| Iceberg REST | http://localhost:8181 | - |
+# Start lightweight services (không bật Spark để tiết kiệm RAM)
+docker compose up -d minio iceberg-rest clickhouse superset
+
+# Kiểm tra nhanh
+docker ps
+```
+
+**Services:**
+- MinIO Console: `http://localhost:9001`
+- Iceberg REST: `http://localhost:8181`
+- ClickHouse: `http://localhost:8123`
+- Superset: `http://localhost:8088`
 
 ---
 
 ## 📖 Hướng Dẫn Sử Dụng
 
-### Quick Start
+### Quick Start (Theo RUNBOOK - Tối Ưu 8GB RAM)
 
+**1️⃣ Bật hạ tầng (MinIO, Iceberg, ClickHouse, Superset)**  
 ```bash
-# 1. Khởi động hệ thống
-make up
-
-# 2. Chạy toàn bộ pipeline
-make pipeline-full
-
-# 3. Setup Superset
-make setup-superset
-
-# 4. Truy cập dashboard tại http://localhost:8088
+cd /Users/koiita/Downloads/auto_scaling
+docker compose up -d minio iceberg-rest clickhouse superset
 ```
 
-### Các Lệnh Thường Dùng
+**2️⃣ Chạy Data Pipeline (Spark)**  
+Do hạn chế RAM, Spark chạy riêng, giống `RUNBOOK.md`:
+
+```bash
+# Stop ClickHouse & Superset để giải phóng RAM
+docker compose stop clickhouse superset
+
+# Start Spark
+docker compose up -d spark-master spark-worker
+
+# Chạy full pipeline (Bronze → Silver → Gold)
+./scripts/run_pipeline.sh
+
+# Sau khi chạy xong, tắt Spark
+docker compose stop spark-master spark-worker
+```
+
+**3️⃣ Bật lại ClickHouse + Superset để xem dashboard**
+```bash
+docker compose up -d clickhouse superset
+```
+
+**4️⃣ Truy cập UI**
+- Superset: `http://localhost:8088` (admin/admin)  
+- ClickHouse: `http://localhost:8123`  
+
+### Các Lệnh Thường Dùng (Makefile)
 
 ```bash
 # Infrastructure
