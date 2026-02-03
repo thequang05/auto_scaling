@@ -27,7 +27,8 @@
     
     <profiles>
         <default>
-            <max_memory_usage>8000000000</max_memory_usage>
+            <max_memory_usage>500000000</max_memory_usage>
+            <max_threads>1</max_threads>
             <load_balancing>random</load_balancing>
             <max_execution_time>600</max_execution_time>
         </default>

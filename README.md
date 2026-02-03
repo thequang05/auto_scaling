@@ -151,7 +151,13 @@ CSV Files → Spark → Bronze (Iceberg) → Silver (Iceberg) → Gold (Iceberg)
 
 ---
 
-## 🚀 Cài Đặt & Cách Chạy Project (8GB RAM Friendly)
+## 🚀 Cài Đặt & Cách Chạy Project
+
+> **⚠️ LƯU Ý QUAN TRỌNG:** Project này **KHÔNG sử dụng AWS services**. Tất cả đều dùng open-source self-hosted:
+> - **MinIO** thay S3
+> - **Apache Spark + Iceberg** thay Databricks  
+> - **ClickHouse** thay Snowflake
+> - Sử dụng **HadoopFileIO** thay vì AWS S3FileIO
 
 ### Bước 1: Clone Repository
 
@@ -162,136 +168,312 @@ cd auto_scaling
 
 ### Bước 2: Tải Dataset
 
-**Option 1: Tự động (khuyến nghị)**
-
-Chạy script setup để tự động tạo thư mục và hướng dẫn download:
-
-```bash
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-```
-
-Script sẽ:
-- Kiểm tra Docker/Docker Compose
-- Tạo thư mục `data/raw`, `notebooks`, `logs`
-- Kiểm tra disk space
-- Hướng dẫn download dataset từ Kaggle
-- Build Docker images tự động
-
-**Option 2: Thủ công**
+Download dataset từ Kaggle và đặt vào thư mục `data/raw/`:
 
 ```bash
 # Tạo thư mục
 mkdir -p data/raw
 
-# Download từ Kaggle
+# Download từ Kaggle:
 # https://www.kaggle.com/datasets/mkechinov/ecommerce-events-history-in-cosmetics-shop
 
-# Giải nén và đặt CSV files vào data/raw/
+# Giải nén và đặt các file CSV vào data/raw/
+# Ví dụ: 2019-Oct.csv, 2019-Nov.csv, ...
 ```
 
-### Bước 3: Build Images
+### Bước 3: Build và Khởi động Services
 
-Nếu đã chạy `setup.sh`, bước này đã được thực hiện tự động. Nếu không:
-
-```bash
+```powershell
+# Di chuyển vào thư mục docker
 cd docker
+
+# Build images
 docker compose build
-```
 
-```bash
-cd auto_scaling
-cd docker
-docker compose build
-```
+# Khởi động TẤT CẢ services
+docker compose up -d
 
-> 💡 **Lưu ý:** File `docker/docker-compose.yml` hiện tại là **bản lightweight**  
-> - Đã tối ưu RAM cho máy 8 GB  
-> - Superset dùng **SQLite nội bộ** làm metadata DB (không cần container PostgreSQL riêng)  
-
-### Bước 4: Bật Hạ Tầng (MinIO, Iceberg, ClickHouse, Superset)
-
-```bash
-cd /Users/koiita/Downloads/auto_scaling
-
-# Start lightweight services (không bật Spark để tiết kiệm RAM)
-docker compose up -d minio iceberg-rest clickhouse superset
-
-# Kiểm tra nhanh
+# Kiểm tra trạng thái
 docker ps
 ```
 
-**Services:**
-- MinIO Console: `http://localhost:9001`
-- Iceberg REST: `http://localhost:8181`
-- ClickHouse: `http://localhost:8123`
-- Superset: `http://localhost:8088`
+**Đợi khoảng 1-2 phút để tất cả services healthy.**
+
+**Services sau khi khởi động:**
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| MinIO Console | http://localhost:9001 | minioadmin / minioadmin123 |
+| Iceberg REST | http://localhost:8181 | - |
+| Spark Master UI | http://localhost:8080 | - |
+| ClickHouse | http://localhost:8123 | default / clickhouse123 |
+| Superset | http://localhost:8088 | admin / admin |
 
 ---
 
-## 📖 Hướng Dẫn Sử Dụng
+## 📖 Hướng Dẫn Chạy Data Pipeline
 
-### Quick Start (Theo RUNBOOK - Tối Ưu 8GB RAM)
+### Bước 1: Bronze Layer - Ingestion
 
-**1️⃣ Bật hạ tầng (MinIO, Iceberg, ClickHouse, Superset)**  
-```bash
-cd /Users/koiita/Downloads/auto_scaling
-docker compose up -d minio iceberg-rest clickhouse superset
+Ingest dữ liệu CSV vào Bronze layer (Iceberg tables trên MinIO):
+
+```powershell
+docker exec spark-master spark-submit `
+    --master spark://spark-master:7077 `
+    --conf spark.driver.memory=2g `
+    --conf spark.executor.memory=2g `
+    /opt/spark-apps/jobs/bronze/ingest_events.py
 ```
 
-**2️⃣ Chạy Data Pipeline (Spark)**  
-Do hạn chế RAM, Spark chạy riêng, giống `RUNBOOK.md`:
+**Kết quả:** ~20 triệu records được ghi vào `iceberg.bronze.events_raw`
 
-```bash
-# Stop ClickHouse & Superset để giải phóng RAM
-docker compose stop clickhouse superset
+### Bước 2: Silver Layer - Transformation
 
-# Start Spark
-docker compose up -d spark-master spark-worker
+Làm sạch và transform dữ liệu:
 
-# Chạy full pipeline (Bronze → Silver → Gold)
-./scripts/run_pipeline.sh
-
-# Sau khi chạy xong, tắt Spark
-docker compose stop spark-master spark-worker
+```powershell
+docker exec spark-master spark-submit `
+    --master spark://spark-master:7077 `
+    --conf spark.driver.memory=2g `
+    --conf spark.executor.memory=2g `
+    /opt/spark-apps/jobs/silver/clean_events.py
 ```
 
-**3️⃣ Bật lại ClickHouse + Superset để xem dashboard**
-```bash
-docker compose up -d clickhouse superset
+**Kết quả:** Dữ liệu được deduplicate, xử lý NULL, và chuẩn hóa
+
+### Bước 3: Gold Layer - Aggregation
+
+Tạo các bảng aggregate cho business analytics:
+
+```powershell
+docker exec spark-master spark-submit `
+    --master spark://spark-master:7077 `
+    --conf spark.driver.memory=2g `
+    --conf spark.executor.memory=2g `
+    /opt/spark-apps/jobs/gold/aggregate_sales.py
 ```
 
-**4️⃣ Truy cập UI**
-- Superset: `http://localhost:8088` (admin/admin)  
-- ClickHouse: `http://localhost:8123`  
+**Kết quả:** 4 bảng Gold được tạo:
+- `iceberg.gold.daily_sales` - Doanh thu theo ngày/category
+- `iceberg.gold.funnel_analysis` - Phân tích funnel chuyển đổi
+- `iceberg.gold.customer_rfm` - Phân khúc khách hàng RFM
+- `iceberg.gold.product_performance` - Hiệu suất sản phẩm
 
-### Các Lệnh Thường Dùng (Makefile)
+### Bước 4: Sync Gold Layer → ClickHouse
 
-```bash
-# Infrastructure
-make up              # Khởi động services
-make down            # Dừng services
-make restart         # Khởi động lại
-make logs            # Xem logs
-make status          # Xem trạng thái
+Export dữ liệu từ Iceberg sang ClickHouse cho serving layer:
 
-# Data Pipeline
-make ingest-bronze        # Ingestion → Bronze
-make transform-silver     # Bronze → Silver
-make aggregate-gold       # Silver → Gold
-make sync-clickhouse      # Gold → ClickHouse
-make pipeline-full        # Chạy toàn bộ
+**4.1. Tạo bảng trong ClickHouse:**
 
-# Development
-make spark-shell     # Mở Spark Shell (Scala)
-make spark-pyspark   # Mở PySpark Shell
-make spark-sql       # Mở Spark SQL
-make clickhouse-client  # Mở ClickHouse client
+```powershell
+docker exec clickhouse clickhouse-client --password clickhouse123 --multiquery --query "
+CREATE DATABASE IF NOT EXISTS lakehouse;
 
-# dbt
-make dbt-run         # Chạy dbt models
-make dbt-test        # Chạy dbt tests
-make dbt-docs        # Generate docs
+CREATE TABLE IF NOT EXISTS lakehouse.daily_sales (
+    event_date Date,
+    category_level1 String,
+    category_level2 String,
+    order_count UInt64,
+    unique_customers UInt64,
+    unique_products UInt64,
+    total_revenue Float64,
+    avg_order_value Float64,
+    min_order_value Float64,
+    max_order_value Float64,
+    revenue_per_customer Float64,
+    sale_year UInt16,
+    sale_month UInt8,
+    sale_quarter UInt8,
+    sale_week UInt8,
+    _aggregated_at DateTime64(6)
+) ENGINE = MergeTree() ORDER BY (event_date, category_level1);
+
+CREATE TABLE IF NOT EXISTS lakehouse.funnel_analysis (
+    event_date Date,
+    category_level1 String,
+    views UInt64,
+    carts UInt64,
+    purchases UInt64,
+    unique_viewers UInt64,
+    unique_carters UInt64,
+    unique_purchasers UInt64,
+    total_revenue Float64,
+    view_to_cart_rate Float64,
+    cart_to_purchase_rate Float64,
+    overall_conversion_rate Float64,
+    user_view_to_cart_rate Float64,
+    user_cart_to_purchase_rate Float64,
+    avg_revenue_per_purchaser Float64,
+    analysis_year UInt16,
+    analysis_month UInt8,
+    _aggregated_at DateTime64(6)
+) ENGINE = MergeTree() ORDER BY (event_date, category_level1);
+
+CREATE TABLE IF NOT EXISTS lakehouse.customer_rfm (
+    user_id UInt64,
+    recency Int32,
+    frequency Int64,
+    monetary Float64,
+    first_purchase_date Date,
+    last_purchase_date Date,
+    avg_order_value Float64,
+    unique_products_bought Int64,
+    r_score UInt8,
+    f_score UInt8,
+    m_score UInt8,
+    rfm_score UInt16,
+    rfm_string String,
+    customer_segment String,
+    segment_date Date,
+    _aggregated_at DateTime64(6)
+) ENGINE = MergeTree() ORDER BY (user_id);
+
+CREATE TABLE IF NOT EXISTS lakehouse.product_performance (
+    product_id UInt64,
+    category_level1 String,
+    category_level2 String,
+    brand String,
+    view_count UInt64,
+    cart_count UInt64,
+    purchase_count UInt64,
+    unique_viewers UInt64,
+    unique_carters UInt64,
+    unique_purchasers UInt64,
+    total_revenue Float64,
+    avg_price Float64,
+    min_price Float64,
+    max_price Float64,
+    view_to_cart_rate Float64,
+    cart_to_purchase_rate Float64,
+    overall_conversion_rate Float64,
+    revenue_per_view Float64,
+    _aggregated_at DateTime64(6)
+) ENGINE = MergeTree() ORDER BY (product_id);
+"
+```
+
+**4.2. Export và Import dữ liệu:**
+
+```powershell
+# Export CSV từ Iceberg
+docker exec spark-master spark-submit `
+    --master spark://spark-master:7077 `
+    /opt/spark-apps/jobs/serving/export_csv.py
+
+# Import vào ClickHouse
+docker exec -i clickhouse bash -c "cat /tmp/daily_sales.csv | clickhouse-client --password clickhouse123 --query 'INSERT INTO lakehouse.daily_sales FORMAT CSVWithNames'"
+docker exec -i clickhouse bash -c "cat /tmp/funnel_analysis.csv | clickhouse-client --password clickhouse123 --query 'INSERT INTO lakehouse.funnel_analysis FORMAT CSVWithNames'"
+docker exec -i clickhouse bash -c "cat /tmp/customer_rfm.csv | clickhouse-client --password clickhouse123 --query 'INSERT INTO lakehouse.customer_rfm FORMAT CSVWithNames'"
+docker exec -i clickhouse bash -c "cat /tmp/product_performance.csv | clickhouse-client --password clickhouse123 --query 'INSERT INTO lakehouse.product_performance FORMAT CSVWithNames'"
+```
+
+**4.3. Kiểm tra kết quả:**
+
+```powershell
+docker exec clickhouse clickhouse-client --password clickhouse123 --multiquery --query "
+SELECT 'daily_sales' as tbl, count() as rows FROM lakehouse.daily_sales;
+SELECT 'funnel_analysis' as tbl, count() as rows FROM lakehouse.funnel_analysis;
+SELECT 'customer_rfm' as tbl, count() as rows FROM lakehouse.customer_rfm;
+SELECT 'product_performance' as tbl, count() as rows FROM lakehouse.product_performance;
+"
+```
+
+---
+
+## 📊 Bước 5: Tạo Dashboard trong Superset
+
+### 5.1. Truy cập Superset
+
+Mở trình duyệt: **http://localhost:8088**
+- Username: `admin`
+- Password: `admin`
+
+### 5.2. Kết nối ClickHouse Database
+
+1. Vào **Settings** → **Database Connections** → **+ Database**
+2. Chọn **ClickHouse Connect**
+3. SQLAlchemy URI:
+   ```
+   clickhousedb://default:clickhouse123@clickhouse:8123/lakehouse
+   ```
+4. Click **Test Connection** → **Connect**
+
+### 5.3. Tạo Datasets
+
+1. Vào **Data** → **Datasets** → **+ Dataset**
+2. Tạo 4 datasets cho 4 bảng:
+   - `lakehouse.daily_sales`
+   - `lakehouse.funnel_analysis`
+   - `lakehouse.customer_rfm`
+   - `lakehouse.product_performance`
+
+### 5.4. Tạo Charts (4 KPI Charts)
+
+| Chart | Dataset | Type | Cấu hình |
+|-------|---------|------|----------|
+| Revenue Trend | daily_sales | Line Chart | X: event_date, Y: SUM(total_revenue) |
+| Conversion Funnel | funnel_analysis | Bar Chart | Metrics: SUM(views), SUM(carts), SUM(purchases) |
+| Customer Segments | customer_rfm | Pie Chart | Dimension: customer_segment, Metric: COUNT(*) |
+| Top Categories | product_performance | Bar Chart | X: category_level1, Y: SUM(total_revenue) |
+
+### 5.5. Tạo Dashboard
+
+1. **Dashboards** → **+ Dashboard**
+2. Đặt tên: `E-commerce Analytics`
+3. Kéo thả 4 charts vào dashboard
+4. **Save**
+
+---
+
+## 🛠️ Các Lệnh Thường Dùng
+
+### Docker Commands (Windows PowerShell)
+
+```powershell
+# Khởi động tất cả services
+cd docker
+docker compose up -d
+
+# Dừng tất cả services
+docker compose down
+
+# Xem logs
+docker compose logs -f
+
+# Kiểm tra trạng thái
+docker ps
+
+# Restart một service cụ thể
+docker compose restart clickhouse
+```
+
+### Spark Commands
+
+```powershell
+# Chạy Bronze layer
+docker exec spark-master spark-submit --master spark://spark-master:7077 /opt/spark-apps/jobs/bronze/ingest_events.py
+
+# Chạy Silver layer
+docker exec spark-master spark-submit --master spark://spark-master:7077 /opt/spark-apps/jobs/silver/clean_events.py
+
+# Chạy Gold layer
+docker exec spark-master spark-submit --master spark://spark-master:7077 /opt/spark-apps/jobs/gold/aggregate_sales.py
+
+# Mở PySpark Shell
+docker exec -it spark-master pyspark --master spark://spark-master:7077
+```
+
+### ClickHouse Commands
+
+```powershell
+# Mở ClickHouse client
+docker exec -it clickhouse clickhouse-client --password clickhouse123
+
+# Query trực tiếp
+docker exec clickhouse clickhouse-client --password clickhouse123 --query "SELECT count() FROM lakehouse.daily_sales"
+
+# Xem tất cả tables
+docker exec clickhouse clickhouse-client --password clickhouse123 --query "SHOW TABLES FROM lakehouse"
 ```
 
 ---

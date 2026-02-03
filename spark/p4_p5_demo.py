@@ -15,7 +15,7 @@ def create_spark():
         .config("spark.sql.catalog.iceberg.type", "rest") \
         .config("spark.sql.catalog.iceberg.uri", "http://iceberg-rest:8181") \
         .config("spark.sql.catalog.iceberg.warehouse", "s3://iceberg-warehouse/") \
-        .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.aws.s3.S3FileIO") \
+        .config("spark.sql.catalog.iceberg.io-impl", "org.apache.iceberg.hadoop.HadoopFileIO") \
         .config("spark.sql.catalog.iceberg.s3.endpoint", "http://minio:9000") \
         .config("spark.sql.catalog.iceberg.s3.access-key-id", "minioadmin") \
         .config("spark.sql.catalog.iceberg.s3.secret-access-key", "minioadmin123") \
