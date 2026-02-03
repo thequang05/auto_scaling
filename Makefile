@@ -16,7 +16,8 @@
 # =============================================================================
 # VARIABLES
 # =============================================================================
-DOCKER_COMPOSE = docker-compose -f docker/docker-compose.yml
+COMPOSE_CMD := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
+DOCKER_COMPOSE = $(COMPOSE_CMD) -f docker/docker-compose.yml
 SPARK_MASTER = spark://spark-master:7077
 DATA_DIR = data/raw
 
