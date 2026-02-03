@@ -44,19 +44,9 @@ else
     exit 1
 fi
 
-# Check system resources
-echo ""
-echo -e "${YELLOW}Checking system resources...${NC}"
-
-# Check RAM
-TOTAL_RAM=$(free -g | awk '/^Mem:/{print $2}')
-if [ "$TOTAL_RAM" -lt 8 ]; then
-    echo -e "${YELLOW}⚠️ Warning: System has ${TOTAL_RAM}GB RAM. Recommended: 16GB${NC}"
-else
-    echo -e "${GREEN}✓ RAM: ${TOTAL_RAM}GB${NC}"
-fi
-
 # Check disk space
+echo ""
+echo -e "${YELLOW}Checking disk space...${NC}"
 DISK_SPACE=$(df -BG . | awk 'NR==2 {print $4}' | sed 's/G//')
 if [ "$DISK_SPACE" -lt 20 ]; then
     echo -e "${YELLOW}⚠️ Warning: Only ${DISK_SPACE}GB disk space available. Recommended: 20GB+${NC}"

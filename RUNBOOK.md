@@ -24,6 +24,26 @@ CSV Data → Bronze (Iceberg) → Silver (Iceberg) → Gold (Iceberg)
 
 ---
 
+## BƯỚC 0: Initial Setup (Tùy chọn)
+
+### 0.1 Chạy Setup Script
+
+Script `setup.sh` sẽ tự động:
+- Kiểm tra Docker và Docker Compose
+- Tạo các thư mục cần thiết (`data/raw`, `notebooks`, `logs`)
+- Kiểm tra disk space
+- Build Docker images
+
+```bash
+cd /Users/koiita/Downloads/auto_scaling
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+**Lưu ý:** Nếu bạn đã có data và đã build images, có thể bỏ qua bước này.
+
+---
+
 ## BƯỚC 1: Khởi Động Hạ Tầng
 
 ### 1.1 Start Docker Services

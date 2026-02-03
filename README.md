@@ -162,7 +162,23 @@ cd auto_scaling
 
 ### Bước 2: Tải Dataset
 
-Tải dataset từ Kaggle và đặt vào thư mục `data/raw/`:
+**Option 1: Tự động (khuyến nghị)**
+
+Chạy script setup để tự động tạo thư mục và hướng dẫn download:
+
+```bash
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+Script sẽ:
+- Kiểm tra Docker/Docker Compose
+- Tạo thư mục `data/raw`, `notebooks`, `logs`
+- Kiểm tra disk space
+- Hướng dẫn download dataset từ Kaggle
+- Build Docker images tự động
+
+**Option 2: Thủ công**
 
 ```bash
 # Tạo thư mục
@@ -175,6 +191,13 @@ mkdir -p data/raw
 ```
 
 ### Bước 3: Build Images
+
+Nếu đã chạy `setup.sh`, bước này đã được thực hiện tự động. Nếu không:
+
+```bash
+cd docker
+docker compose build
+```
 
 ```bash
 cd auto_scaling
