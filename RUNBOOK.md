@@ -32,7 +32,7 @@ CSV Data → Bronze (Iceberg) → Silver (Iceberg) → Gold (Iceberg)
 cd /Users/koiita/Downloads/auto_scaling
 
 # Start lightweight version (tối ưu cho 8GB RAM)
-docker compose -f docker/docker-compose.light.yml up -d minio iceberg-rest clickhouse superset
+docker compose up -d minio iceberg-rest clickhouse superset
 
 # Verify services
 docker ps
@@ -60,10 +60,10 @@ docker ps
 
 ```bash
 # Stop ClickHouse & Superset để giải phóng RAM
-docker compose -f docker/docker-compose.light.yml stop clickhouse superset
+docker compose stop clickhouse superset
 
 # Start Spark
-docker compose -f docker/docker-compose.light.yml up -d spark-master spark-worker
+docker compose up -d spark-master spark-worker
 
 # Wait for Spark ready
 sleep 10
@@ -101,10 +101,10 @@ docker exec spark-master spark-submit \
 
 ```bash
 # Stop Spark để giải phóng RAM
-docker compose -f docker/docker-compose.light.yml stop spark-master spark-worker
+docker compose stop spark-master spark-worker
 
 # Restart ClickHouse + Superset
-docker compose -f docker/docker-compose.light.yml up -d clickhouse superset
+docker compose up -d clickhouse superset
 ```
 
 ---
@@ -252,7 +252,7 @@ Thêm 3 datasets:
 
 ```bash
 # Start Spark
-docker compose -f docker/docker-compose.light.yml up -d spark-master spark-worker
+docker compose up -d spark-master spark-worker
 
 # Chạy Spark SQL
 docker exec -it spark-master spark-sql
@@ -312,10 +312,10 @@ docker exec minio mc ls -r local/iceberg-warehouse/
 **Solution:**
 ```bash
 # Stop Spark before running ClickHouse
-docker compose -f docker/docker-compose.light.yml stop spark-master spark-worker
+docker compose stop spark-master spark-worker
 
 # Restart services
-docker compose -f docker/docker-compose.light.yml restart clickhouse superset
+docker compose restart clickhouse superset
 ```
 
 ### Issue: ClickHouse Connection Failed
@@ -355,20 +355,20 @@ docker ps --filter "name=clickhouse"
 ### Stop All Services
 
 ```bash
-docker compose -f docker/docker-compose.light.yml down
+docker compose down
 ```
 
 ### Remove Data (Start Fresh)
 
 ```bash
 # WARNING: Deletes all data
-docker compose -f docker/docker-compose.light.yml down -v
+docker compose down -v
 
 # Remove MinIO data
 rm -rf data/minio/*
 
 # Restart
-docker compose -f docker/docker-compose.light.yml up -d
+docker compose up -d
 ```
 
 ---
@@ -390,7 +390,7 @@ docker compose -f docker/docker-compose.light.yml up -d
 ## Key Files Reference
 
 ### Configuration
-- `docker/docker-compose.light.yml` - Lightweight services config
+- `docker/docker-compose.yml` - Lightweight services config (default)
 - `dbt/profiles.yml` - dbt ClickHouse connection
 - `docker/superset/superset_config.py` - Superset SQLite config
 
@@ -423,16 +423,16 @@ docker compose -f docker/docker-compose.light.yml up -d
 ```bash
 # 1. Start services
 cd /Users/koiita/Downloads/auto_scaling
-docker compose -f docker/docker-compose.light.yml up -d
+docker compose up -d
 
 # 2. Run pipeline (nếu chưa có data)
-docker compose -f docker/docker-compose.light.yml stop clickhouse superset
-docker compose -f docker/docker-compose.light.yml up -d spark-master spark-worker
+docker compose stop clickhouse superset
+docker compose up -d spark-master spark-worker
 ./scripts/run_pipeline.sh
-docker compose -f docker/docker-compose.light.yml stop spark-master spark-worker
+docker compose stop spark-master spark-worker
 
 # 3. Setup ClickHouse + dbt
-docker compose -f docker/docker-compose.light.yml up -d clickhouse superset
+docker compose up -d clickhouse superset
 ./scripts/setup_clickhouse_iceberg.sh
 ./scripts/run_dbt.sh run
 

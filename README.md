@@ -138,7 +138,7 @@ CSV Files → Spark → Bronze (Iceberg) → Silver (Iceberg) → Gold (Iceberg)
 
 | Resource | Minimum | Recommended |
 |----------|---------|-------------|
-| RAM | 8 GB | **16 GB** |
+| RAM | 8 GB (đã tối ưu với cấu hình lightweight) | **16 GB** (thoải mái hơn, nhất là khi chạy full pipeline + ClickHouse) |
 | CPU | 4 cores | 8 cores |
 | Disk | 20 GB | 50 GB |
 
@@ -156,8 +156,8 @@ CSV Files → Spark → Bronze (Iceberg) → Silver (Iceberg) → Gold (Iceberg)
 ### Bước 1: Clone Repository
 
 ```bash
-git clone <repository-url>
-cd data-lakehouse
+git clone https://github.com/thequang05/auto_scaling.git
+cd auto_scaling
 ```
 
 ### Bước 2: Tải Dataset
@@ -183,9 +183,13 @@ make up
 
 # Hoặc sử dụng Docker Compose trực tiếp
 cd docker
-docker-compose build
-docker-compose up -d
+docker compose build
+docker compose up -d
 ```
+
+> 💡 **Lưu ý:** File `docker/docker-compose.yml` hiện tại là **bản lightweight**  
+> - Đã tối ưu RAM cho máy 8 GB  
+> - Superset dùng **SQLite nội bộ** làm metadata DB (không cần container PostgreSQL riêng)  
 
 ### Bước 4: Kiểm Tra Services
 
@@ -513,7 +517,7 @@ make logs-clickhouse
 
 ```bash
 # Khởi động lại Superset
-docker-compose restart superset
+docker compose restart superset
 
 # Kiểm tra database connection trong Superset UI
 # Settings → Database Connections
