@@ -28,15 +28,7 @@
 
 ---
 
-## 📖 Tài Liệu Hướng Dẫn
 
-> **🎯 Bắt đầu nhanh?** Xem [QUICK_START.md](./QUICK_START.md) - Hướng dẫn chạy project trong 5 phút
-
-> **📘 Cần hướng dẫn chi tiết?** Xem [HUONG_DAN_CHAY_PROJECT.md](./HUONG_DAN_CHAY_PROJECT.md) - Tài liệu đầy đủ từ setup đến troubleshooting
-
-> **📁 Muốn hiểu cấu trúc project?** Xem [CAU_TRUC_PROJECT.md](./CAU_TRUC_PROJECT.md) - Giải thích chi tiết từng thư mục và file
-
----
 
 ## 🎯 Giới Thiệu
 
